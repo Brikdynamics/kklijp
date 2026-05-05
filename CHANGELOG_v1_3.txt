@@ -1,0 +1,13 @@
+KKLIJP v1.3 echte patch
+
+Aangepast:
+- Nieuw CSS-logo met ×_× gezicht en KK rood, LIJP wit.
+- Categorieën tonen aantallen: Lifehacks (15), Hotties (0), enz.
+- Video modal heeft Deel-knop en kopieerbare KKLIJP-link: /?v=video_id.
+- Flood protection: uploads max 3 per 10 min/IP, reacties max 5 per 2 min/IP.
+- Categorie keyword engine toegevoegd per categorie.
+- Generieke filtertags verwijderd uit generator: kklijp/video/viral/youtube/fyp worden genegeerd.
+- Demo database aangepast zodat er geen oude generieke hashtags meer in staan.
+
+Belangrijk:
+Verwijder of hernoem je oude kklijp-map voordat je deze zip uitpakt, anders zie je mogelijk nog oude bestanden/cache.

@@ -1,0 +1,10 @@
+KKLIJP v1.4
+
+- Logo aangepast: KK heeft nu dezelfde paarse/neon kleur als ×_×.
+- Hele interface verder vernederlandst.
+- Trending hashtags vervangen door Lijpste video's toplijst.
+- Video openen toont nu speler plus alle info, deelknop, deel-link, hashtags en reacties onder elkaar.
+- Deel-link blijft een KKLIJP-link: /?v=video_id.
+- Categorieën tonen nog steeds aantallen, nu met Nederlandse labels.
+- Categorie-herkenning uitgebreid met Nederlandse keywords per categorie.
+- Generieke filtertags blijven uitgesloten.
