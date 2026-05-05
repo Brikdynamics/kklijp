@@ -1,20 +1,15 @@
 {
   "name": "kklijp-render-ready-fixed",
   "version": "1.5.2",
-  "private": true,
   "type": "module",
   "engines": {
-    "node": "20.x",
-    "npm": ">=10"
+    "node": "20.x"
   },
   "scripts": {
-    "dev": "node server/index.js",
-    "build": "node -e \"console.log(\\\"KKLIJP frontend is prebuilt in /dist\\\")\"",
+    "build": "node -e \"console.log('KKLIJP frontend is prebuilt in /dist')\"",
     "start": "node server/index.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "2.8.5",
-    "dotenv": "16.4.7"
+    "express": "^4.18.2"
   }
 }
