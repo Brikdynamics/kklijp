@@ -9,13 +9,15 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const dbPath = path.join(__dirname, 'data', 'db.json');
+const rootDir = path.join(__dirname, '..');
+const distDir = path.join(rootDir, 'dist');
 const app = express();
 const PORT = process.env.PORT || 8787;
 const ADMIN_PASSWORD = process.env.KKLIJP_ADMIN_PASSWORD || 'ADMIN2026';
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || '';
 
 app.use(cors());
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '4mb' }));
 
 const categories = [
   { id:'all', label:'Alles' },
@@ -127,8 +129,47 @@ app.post('/api/videos/:id/comments', async (req,res)=>{ if(!floodCheck(req,'comm
 app.get('/api/trending', async (req,res)=>{ const db=await readDb(); const tags={}; db.videos.filter(v=>(v.status||'approved')==='approved').forEach(v=>(v.hashtags||[]).forEach(t=>{ if(!stopWords.has(t)) tags[t]=(tags[t]||0)+Math.max(1,v.views||0)+(v.likes||0)*4; })); res.json(Object.entries(tags).sort((a,b)=>b[1]-a[1]).slice(0,16).map(([tag,score])=>({tag,score}))); });
 app.get('/api/top', async (req,res)=>{ const db=await readDb(); res.json(db.videos.filter(v=>(v.status||'approved')==='approved').sort((a,b)=>((b.views||0)+(b.likes||0)*12+(b.comments?.length||0)*8)-((a.views||0)+(a.likes||0)*12+(a.comments?.length||0)*8)).slice(0,6)); });
 app.get('/api/admin/videos', requireAdmin, async (req,res)=>{ const db=await readDb(); const status=req.query.status||'all'; const rows=status==='all'?db.videos:db.videos.filter(v=>(v.status||'approved')===status); res.json(rows.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt))); });
-app.patch('/api/admin/videos/:id', requireAdmin, async (req,res)=>{ const db=await readDb(); const v=db.videos.find(x=>x.id===req.params.id); if(!v) return res.status(404).json({ error:'Niet gevonden.' }); for(const k of ['title','category','hashtags','status','thumbnailUrl','embedUrl','url']) if(k in req.body) v[k] = k==='hashtags' ? String(req.body[k]).split(/[\s,#]+/).map(cleanTag).filter(Boolean).slice(0,60) : req.body[k]; if(req.body.status==='approved' && !v.approvedAt) v.approvedAt=new Date().toISOString(); await writeDb(db); res.json(v); });
+app.patch('/api/admin/videos/:id', requireAdmin, async (req,res)=>{ const db=await readDb(); const v=db.videos.find(x=>x.id===req.params.id); if(!v) return res.status(404).json({ error:'Niet gevonden.' }); for(const k of ['title','category','hashtags','status','thumbnailUrl','embedUrl','url','postedBy','description']) if(k in req.body) v[k] = k==='hashtags' ? String(req.body[k]).split(/[\s,#]+/).map(cleanTag).filter(Boolean).slice(0,80) : (k==='postedBy' ? normalizeName(req.body[k]) : req.body[k]); if(req.body.status==='approved' && !v.approvedAt) v.approvedAt=new Date().toISOString(); await writeDb(db); res.json(v); });
 app.post('/api/admin/videos/:id/approve', requireAdmin, async (req,res)=>{ const db=await readDb(); const v=db.videos.find(x=>x.id===req.params.id); if(!v) return res.status(404).json({ error:'Niet gevonden.' }); v.status='approved'; v.approvedAt=new Date().toISOString(); await writeDb(db); res.json(v); });
 app.delete('/api/admin/videos/:id', requireAdmin, async (req,res)=>{ const db=await readDb(); db.videos=db.videos.filter(x=>x.id!==req.params.id); delete db.likes[req.params.id]; await writeDb(db); res.json({ ok:true }); });
 
-app.listen(PORT, ()=>console.log(`KKLIJP API v1.4 draait op http://localhost:${PORT}`));
+
+app.post('/api/admin/videos/batch', requireAdmin, async (req,res)=>{
+  const text = String(req.body?.text || '');
+  const fallbackName = normalizeName(req.body?.postedBy || 'Admin') || 'Admin';
+  const requestedStatus = req.body?.status === 'pending' ? 'pending' : 'approved';
+  const lines = text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0, 200);
+  if(!lines.length) return res.status(400).json({ error:'Plak minimaal één videolink.' });
+  const db = await readDb();
+  const errors = [];
+  const created = [];
+  for(let i=0;i<lines.length;i++){
+    const line = lines[i];
+    try{
+      const parts = line.split('|').map(x=>x.trim());
+      const url = parts[0];
+      const title = parts[1] || '';
+      const postedBy = normalizeName(parts[2] || fallbackName) || fallbackName;
+      if(!/^https?:\/\//i.test(url)) throw new Error('Geen geldige link.');
+      const video = await buildVideoData(url, title.slice(0,120), postedBy);
+      video.status = requestedStatus;
+      if(requestedStatus === 'approved') video.approvedAt = new Date().toISOString();
+      db.videos.push(video);
+      created.push(video);
+    }catch(e){
+      errors.push({ line:i+1, input:line.slice(0,180), error:e.message || 'Onbekende fout' });
+    }
+  }
+  await writeDb(db);
+  res.status(201).json({ added:created.length, failed:errors.length, errors, videos:created });
+});
+
+// Production: serve the Vite frontend from /dist so Render can run one Node service.
+app.use(express.static(distDir));
+app.get(/.*/, async (req,res,next)=>{
+  if(req.path.startsWith('/api/')) return next();
+  try { res.sendFile(path.join(distDir, 'index.html')); }
+  catch (e) { next(e); }
+});
+
+app.listen(PORT, ()=>console.log(`KKLIJP v1.5 draait op http://localhost:${PORT}`));
