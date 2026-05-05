@@ -8,8 +8,6 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 20.18.1
-      - key: NODE_ENV
-        value: production
       - key: KKLIJP_ADMIN_PASSWORD
         sync: false
       - key: YOUTUBE_API_KEY

@@ -1,21 +1,24 @@
-KKLIJP v1.5.2 - Render fixed
+KKLIJP v1.5.4 Render Fix
 
-Deze build gebruikt een vooraf gebouwde frontend in /dist.
-Daardoor hoeft Render GEEN Vite/React build meer te draaien en krijg je geen 127 error meer.
+Deze build gebruikt GEEN Express/Cors/Dotenv meer.
+Daarmee zijn de Render errors opgelost:
+- Cannot find package express
+- Cannot find package cors
+- Cannot find package dotenv
+- Cannot find module ./router
 
 Render settings:
 Build Command: npm install && npm run build
 Start Command: npm start
 
-Environment variables:
-NODE_VERSION=20.18.1
-KKLIJP_ADMIN_PASSWORD=jouw_admin_wachtwoord
-YOUTUBE_API_KEY=jouw_youtube_api_key
+Environment variables op Render:
+KKLIJP_ADMIN_PASSWORD=je_admin_wachtwoord
+YOUTUBE_API_KEY=je_youtube_api_key
 
-PowerShell update naar GitHub:
-git add .
-git commit -m "fix render build v1.5.2"
-git push
+Lokaal testen:
+npm install
+npm start
+open http://localhost:8787
 
-Daarna in Render:
-Manual Deploy -> Clear build cache & deploy
+Let op:
+.env zit bewust niet in deze zip. Zet secrets alleen in Render Environment Variables.
