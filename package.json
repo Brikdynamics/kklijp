@@ -1,27 +1,20 @@
 {
-  "name": "kklijp-full-build",
-  "version": "1.5.0",
+  "name": "kklijp-render-ready-fixed",
+  "version": "1.5.2",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "20.x",
+    "npm": ">=10"
+  },
   "scripts": {
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "client": "vite --host 0.0.0.0",
-    "server": "node server/index.js",
-    "build": "vite build",
-    "start": "node server/index.js",
-    "render-build": "npm install && npm run build"
+    "dev": "node server/index.js",
+    "build": "node -e \"console.log(\\\"KKLIJP frontend is prebuilt in /dist\\\")\"",
+    "start": "node server/index.js"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
-    "concurrently": "latest",
-    "cors": "latest",
-    "dotenv": "latest",
-    "express": "latest",
-    "framer-motion": "latest",
-    "lucide-react": "latest",
-    "vite": "latest",
-    "react": "latest",
-    "react-dom": "latest"
-  },
-  "devDependencies": {}
+    "express": "4.21.2",
+    "cors": "2.8.5",
+    "dotenv": "16.4.7"
+  }
 }
