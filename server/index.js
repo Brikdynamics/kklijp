@@ -170,13 +170,145 @@ function cleanTag(s){ return String(s||'').toLowerCase().replace(/&amp;/g,'and')
 function platform(url){ try{const h=new URL(url).hostname.replace('www.','').toLowerCase(); if(h.includes('youtube.com')||h.includes('youtu.be'))return 'youtube'; if(h.includes('facebook.com')||h.includes('fb.watch'))return 'facebook'; return 'link'}catch{return 'link'} }
 function youtubeId(url){ try{const u=new URL(url); if(u.hostname.includes('youtu.be')) return u.pathname.split('/').filter(Boolean)[0]; if(u.searchParams.get('v')) return u.searchParams.get('v'); const parts=u.pathname.split('/').filter(Boolean); for(const m of ['shorts','embed','live']){const i=parts.indexOf(m); if(i>=0&&parts[i+1]) return parts[i+1];}}catch{} return '' }
 function detectType(url){ const l=String(url).toLowerCase(); return (l.includes('/shorts/')||l.includes('/reel/')||l.includes('facebook.com/reel')||l.includes('/share/r/'))?'reel':'video'; }
-function meta(html,prop){ const pats=[new RegExp(`<meta[^>]+property=["']${prop}["'][^>]+content=["']([^"']+)["']`,'i'),new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${prop}["']`,'i'),new RegExp(`<meta[^>]+name=["']${prop}["'][^>]+content=["']([^"']+)["']`,'i')]; for(const p of pats){const m=html.match(p); if(m?.[1]) return m[1].replace(/&amp;/g,'&')} return '' }
-async function openGraph(url){ try{const r=await fetch(url,{redirect:'follow',headers:{'user-agent':'Mozilla/5.0 KKLIJP'}}); const html=await r.text(); return {finalUrl:r.url||url,title:meta(html,'og:title'),description:meta(html,'og:description'),image:meta(html,'og:image')||meta(html,'twitter:image')}}catch{return {finalUrl:url,title:'',description:'',image:''}} }
+function decodeHtml(s){
+  return String(s||'')
+    .replace(/&amp;/g,'&')
+    .replace(/&quot;/g,'\"')
+    .replace(/&#039;/g,"'")
+    .replace(/&apos;/g,"'")
+    .replace(/\\\//g,'/');
+}
+function meta(html,prop){
+  const safe = prop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pats=[
+    new RegExp(`<meta[^>]+property=["']${safe}["'][^>]+content=["']([^"']+)["']`,'is'),
+    new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${safe}["']`,'is'),
+    new RegExp(`<meta[^>]+name=["']${safe}["'][^>]+content=["']([^"']+)["']`,'is'),
+    new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+name=["']${safe}["']`,'is')
+  ];
+  for(const p of pats){const m=html.match(p); if(m?.[1]) return decodeHtml(m[1])}
+  return '';
+}
+function extractJsonImage(html){
+  const patterns = [
+    /"thumbnailUrl"\s*:\s*"([^"]+)"/i,
+    /"thumbnail_url"\s*:\s*"([^"]+)"/i,
+    /"image"\s*:\s*\{[^{}]*"url"\s*:\s*"([^"]+)"/i,
+    /"preferred_thumbnail"[^{}]*\{[^{}]*"uri"\s*:\s*"([^"]+)"/i,
+    /"url"\s*:\s*"(https?:\\\/\\\/[^"]+(?:fbcdn|scontent)[^"]+)"/i
+  ];
+  for(const re of patterns){
+    const m = html.match(re);
+    if(m?.[1]) return decodeHtml(m[1]);
+  }
+  return '';
+}
+function fbIdFromUrl(raw){
+  try{
+    const u = new URL(raw);
+    const parts = u.pathname.split('/').filter(Boolean);
+    const reel = parts.indexOf('reel');
+    if(reel >= 0 && parts[reel+1]) return parts[reel+1];
+    const videos = parts.indexOf('videos');
+    if(videos >= 0 && parts[videos+1]) return parts[videos+1];
+    const v = u.searchParams.get('v');
+    if(v) return v;
+  }catch{}
+  return '';
+}
+function fbVariants(raw, finalUrl){
+  const out = [];
+  const push = x => { if(x && !out.includes(x)) out.push(x); };
+  push(finalUrl || raw);
+  push(raw);
+  const id = fbIdFromUrl(finalUrl || raw) || fbIdFromUrl(raw);
+  if(id){
+    push(`https://www.facebook.com/reel/${id}`);
+    push(`https://m.facebook.com/reel/${id}`);
+    push(`https://www.facebook.com/watch/?v=${id}`);
+    push(`https://m.facebook.com/watch/?v=${id}`);
+  }
+  for(const x of [...out]){
+    try{ const u = new URL(x); u.search = ''; push(u.toString()); }catch{}
+  }
+  return out;
+}
+async function fetchHtml(target){
+  const r = await fetch(target, {
+    redirect:'follow',
+    headers:{
+      'user-agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36',
+      'accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      'accept-language':'nl-NL,nl;q=0.9,en-US;q=0.8,en;q=0.7',
+      'cache-control':'no-cache'
+    }
+  });
+  return { finalUrl:r.url||target, html:await r.text() };
+}
+async function facebookOembed(target){
+  try{
+    const r = await fetch(`https://www.facebook.com/plugins/video/oembed.json/?url=${encodeURIComponent(target)}`, {
+      redirect:'follow',
+      headers:{'user-agent':'Mozilla/5.0 KKLIJP old-preview-compat','accept':'application/json,text/plain,*/*'}
+    });
+    if(!r.ok) return {};
+    const j = await r.json();
+    return { title:j.title||'', image:j.thumbnail_url||j.thumbnailUrl||'', html:j.html||'' };
+  }catch{return {}}
+}
+async function openGraph(url){
+  let firstFinal = url;
+  const candidates = [url];
+  const merged = {finalUrl:url,title:'',description:'',image:''};
+  try{
+    const first = await fetchHtml(url);
+    firstFinal = first.finalUrl || url;
+    candidates.push(firstFinal);
+    const title = meta(first.html,'og:title') || meta(first.html,'twitter:title');
+    const description = meta(first.html,'og:description') || meta(first.html,'twitter:description');
+    const image = meta(first.html,'og:image') || meta(first.html,'og:image:url') || meta(first.html,'twitter:image') || meta(first.html,'twitter:image:src') || extractJsonImage(first.html);
+    Object.assign(merged, { finalUrl:firstFinal, title, description, image });
+  }catch{}
+
+  if(platform(firstFinal) === 'facebook' || platform(url) === 'facebook'){
+    for(const target of fbVariants(url, firstFinal)){
+      if(merged.image && merged.title) break;
+      const oe = await facebookOembed(target);
+      if(!merged.title && oe.title) merged.title = oe.title;
+      if(!merged.image && oe.image) merged.image = oe.image;
+      if(!merged.image && oe.html) merged.image = meta(oe.html,'og:image') || extractJsonImage(oe.html);
+      try{
+        const got = await fetchHtml(target);
+        if(!merged.finalUrl) merged.finalUrl = got.finalUrl || target;
+        if(!merged.title) merged.title = meta(got.html,'og:title') || meta(got.html,'twitter:title');
+        if(!merged.description) merged.description = meta(got.html,'og:description') || meta(got.html,'twitter:description');
+        if(!merged.image) merged.image = meta(got.html,'og:image') || meta(got.html,'og:image:url') || meta(got.html,'twitter:image') || meta(got.html,'twitter:image:src') || extractJsonImage(got.html);
+      }catch{}
+    }
+  }
+  return merged;
+}
 async function ytMeta(id){ if(!YOUTUBE_API_KEY||!id)return null; try{const r=await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(id)}&key=${encodeURIComponent(YOUTUBE_API_KEY)}`); if(!r.ok)return null; const s=(await r.json()).items?.[0]?.snippet; if(!s)return null; return {title:s.title||'',description:s.description||'',tags:Array.isArray(s.tags)?s.tags:[],categoryId:s.categoryId||'',thumbnailUrl:s.thumbnails?.maxres?.url||s.thumbnails?.standard?.url||s.thumbnails?.high?.url||s.thumbnails?.medium?.url||''}}catch{return null} }
 function scoreCategory(inputs, ytCat){ const text=inputs.join(' ').toLowerCase().replace(/[#_]+/g,' '); const score=Object.fromEntries(catIds.map(c=>[c,0])); if(ytCat&&ytCategoryMap[ytCat]) score[ytCategoryMap[ytCat]]+=6; for(const [cat,words] of Object.entries(categoryKeywords)) for(const raw of words){const w=raw.toLowerCase(); if(text.includes(w)) score[cat]+=w.length>6?3:2} const best=Object.entries(score).sort((a,b)=>b[1]-a[1])[0]; return best&&best[1]>0?best[0]:'random'; }
 function tags({customTitle,platformTitle,description,category,apiTags=[]}){ const set=new Set(); (categoryKeywords[category]||[]).forEach(w=>{const t=cleanTag(w); if(t&&!stopWords.has(t))set.add(t)}); [...apiTags, customTitle, platformTitle, description].join(' ').split(/[\s,.;:!?()[\]{}<>"'`~|/#]+/).forEach(w=>{const t=cleanTag(w); if(t.length>=3&&t.length<=28&&!stopWords.has(t))set.add(t)}); return [...set].slice(0,50); }
 function fbEmbed(url){return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=false&width=500`}
-async function buildVideo(url, customTitle, postedBy){ let finalUrl=url, p=platform(url), og={title:'',description:'',image:''}; if(p==='facebook'||p==='link'){ og=await openGraph(url); finalUrl=og.finalUrl||url; p=platform(finalUrl); } const ytId=p==='youtube'?youtubeId(finalUrl):''; const yt=ytId?await ytMeta(ytId):null; const platformTitle=yt?.title||og.title||''; const description=yt?.description||og.description||''; const category=scoreCategory([customTitle,platformTitle,description,...(yt?.tags||[])], yt?.categoryId); const type=detectType(finalUrl); const thumbnailUrl=p==='youtube'&&ytId?(yt?.thumbnailUrl||`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`):(og.image||''); const embedUrl=p==='youtube'&&ytId?`https://www.youtube.com/embed/${ytId}`:p==='facebook'?fbEmbed(finalUrl):finalUrl; return {id:`v-${Date.now()}-${Math.random().toString(16).slice(2)}`,url:finalUrl,platform:p,platformId:ytId,title:customTitle||platformTitle||'Titel later aanpassen',platformTitle,description,thumbnailUrl,embedUrl,category,hashtags:tags({customTitle,platformTitle,description,category,apiTags:yt?.tags||[]}),postedBy,type,likes:0,views:0,comments:[],status:'pending',createdAt:new Date().toISOString()}; }
+async function buildVideo(url, customTitle, postedBy){
+  let finalUrl=url, p=platform(url), og={title:'',description:'',image:''};
+  if(p==='facebook'||p==='link'){
+    og=await openGraph(url);
+    finalUrl=og.finalUrl||url;
+    p=platform(finalUrl) === 'link' ? platform(url) : platform(finalUrl);
+  }
+  const ytId=p==='youtube'?youtubeId(finalUrl):'';
+  const yt=ytId?await ytMeta(ytId):null;
+  const platformTitle=yt?.title||og.title||'';
+  const description=yt?.description||og.description||'';
+  const category=scoreCategory([customTitle,platformTitle,description,...(yt?.tags||[])], yt?.categoryId);
+  const type=detectType(finalUrl) === 'video' ? detectType(url) : detectType(finalUrl);
+  const thumbnailUrl=p==='youtube'&&ytId?(yt?.thumbnailUrl||`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`):(og.image||'');
+  const embedUrl=p==='youtube'&&ytId?`https://www.youtube.com/embed/${ytId}`:p==='facebook'?fbEmbed(finalUrl || url):finalUrl;
+  return {id:`v-${Date.now()}-${Math.random().toString(16).slice(2)}`,url:finalUrl,platform:p,platformId:ytId,title:customTitle||platformTitle||'Titel later aanpassen',platformTitle,description,thumbnailUrl,embedUrl,category,hashtags:tags({customTitle,platformTitle,description,category,apiTags:yt?.tags||[]}),postedBy,type,likes:0,views:0,comments:[],status:'pending',createdAt:new Date().toISOString()};
+}
 function sortRows(rows, sort, order){ const dir=order==='asc'?1:-1; return rows.sort((a,b)=>{ if(sort==='likes')return dir*((a.likes||0)-(b.likes||0)); if(sort==='views')return dir*((a.views||0)-(b.views||0)); if(sort==='name')return dir*String(a.title).localeCompare(String(b.title)); return dir*(new Date(a.createdAt)-new Date(b.createdAt));}); }
 function topScore(v){ return (v.views||0)+(v.likes||0)*12+(v.comments?.length||0)*8; }
 
