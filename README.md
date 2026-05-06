@@ -1,8 +1,8 @@
-# KKLIJP v1.5 Render-ready
+# KKLIJP v1.4
 
-Volledige build: frontend + backend + JSON-database + adminpaneel.
+Volledige lokale build van KKLIJP: frontend + backend + JSON-database.
 
-## Lokaal starten
+## Starten
 
 ```bash
 npm install
@@ -10,52 +10,33 @@ cp .env.example .env
 npm run dev
 ```
 
-Open:
+Open daarna:
 
 ```text
 http://localhost:5173
 ```
 
-## Render deploy
-
-Maak een **Node Web Service** op Render.
-
-Build command:
-
-```bash
-npm install && npm run build
-```
-
-Start command:
-
-```bash
-npm start
-```
-
-Environment variables op Render:
-
-```text
-YOUTUBE_API_KEY=jouw_youtube_api_key
-KKLIJP_ADMIN_PASSWORD=jouw_admin_wachtwoord
-```
-
-Zet **geen** `VITE_API_URL` op Render. De frontend en backend draaien op dezelfde service.
-
 ## Admin
 
-Standaard adminwachtwoord als je niks instelt:
+Standaard adminwachtwoord:
 
 ```text
 ADMIN2026
 ```
 
-## v1.5 wijzigingen
+Aanpassen in `.env`:
 
-- Render-ready: backend serveert nu automatisch de Vite frontend uit `/dist`.
-- `Cannot GET /` opgelost.
-- Admin batch-import toegevoegd voor maximaal 200 video's tegelijk.
-- Batchregels ondersteunen: `link`, `link | titel`, `link | titel | naam`.
-- Batch kan direct goedkeuren of in de wachtrij zetten.
-- Admin kan bestaande video's bewerken: titel, plaatsernaam, categorie, tags, thumbnail en link.
-- Admin-knoppen versimpeld naar: accepteren, bewerken, verwijderen.
-- Oude losse `Opslaan`-button verwijderd.
+```env
+KKLIJP_ADMIN_PASSWORD=jouw_wachtwoord
+YOUTUBE_API_KEY=jouw_youtube_api_key
+```
+
+## v1.4 wijzigingen
+
+- KK-logo kleur gelijk aan ×_×.
+- Website Nederlandstalig gemaakt.
+- Rechterblok heet nu `Lijpste video's` en toont een toplijst.
+- Videomodal toont nu speler + info + delen + reacties overzichtelijk onder elkaar.
+- Categorieën tonen aantallen.
+- Meer Nederlandse categorie-keywords voor betere herkenning.
+- Flood protection voor uploads en reacties blijft actief.

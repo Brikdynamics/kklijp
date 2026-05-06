@@ -1,7 +1,7 @@
 services:
   - type: web
     name: kklijp
-    env: node
+    runtime: node
     plan: free
     buildCommand: npm install && npm run build
     startCommand: npm start
@@ -12,3 +12,7 @@ services:
         sync: false
       - key: YOUTUBE_API_KEY
         sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: PGSSL
+        value: "true"

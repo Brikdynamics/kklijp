@@ -1,12 +1,14 @@
 {
-  "name": "kklijp-render-ready-fixed",
-  "version": "1.5.4",
+  "name": "kklijp-v3-database-ready",
+  "version": "3.0.0",
+  "private": true,
   "type": "module",
-  "engines": {
-    "node": "20.x"
-  },
+  "engines": {"node":"20.x"},
   "scripts": {
-    "build": "node -e \"console.log('KKLIJP frontend is prebuilt in /dist')\"",
+    "build": "node -e \"console.log('KKLIJP v3 frontend is prebuilt in /dist')\"",
     "start": "node server/index.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
   }
 }
